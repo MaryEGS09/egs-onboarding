@@ -46,3 +46,6 @@ next-env.d.ts
 # prisma generated client (regenerate via prisma generate)
 /src/generated
 
+# Claude Code session-local runtime artifacts (launch.json is intentionally kept)
+.claude/scheduled_tasks.lock
+
