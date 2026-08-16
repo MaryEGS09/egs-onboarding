@@ -3,6 +3,9 @@ import { loadAllPhasesOrdered, loadPhaseQuestions } from "@/lib/ai/question-grap
 
 export type ReviewDocumentSnapshot = {
   generatedAt: string;
+  resumeCode: string | null;
+  businessName: string | null;
+  contactEmail: string | null;
   phases: {
     phaseKey: string;
     phaseName: string;
@@ -32,6 +35,11 @@ function formatAnswerValue(answer: {
 }
 
 export async function buildReviewSnapshot(sessionId: string): Promise<ReviewDocumentSnapshot> {
+  const session = await prisma.onboardingSession.findUniqueOrThrow({
+    where: { id: sessionId },
+    include: { client: true },
+  });
+
   const phases = await loadAllPhasesOrdered();
 
   const phaseBlocks = await Promise.all(
@@ -89,7 +97,13 @@ export async function buildReviewSnapshot(sessionId: string): Promise<ReviewDocu
     }),
   );
 
-  return { generatedAt: new Date().toISOString(), phases: phaseBlocks };
+  return {
+    generatedAt: new Date().toISOString(),
+    resumeCode: session.resumeCodePlaintext,
+    businessName: session.client.businessName,
+    contactEmail: session.client.primaryContactEmail,
+    phases: phaseBlocks,
+  };
 }
 
 export async function countIncompleteRequiredQuestions(sessionId: string): Promise<number> {

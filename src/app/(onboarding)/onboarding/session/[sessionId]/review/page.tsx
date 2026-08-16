@@ -12,6 +12,7 @@ import { REVIEW_INTRO_COPY, FINAL_CONFIRMATION_COPY } from "@/lib/copy/onboardin
 import { toast } from "sonner";
 import { Download, Pencil } from "lucide-react";
 import { EgsLogoHeader } from "@/components/onboarding/egs-logo-header";
+import { ResumeCodeBanner } from "@/components/review/resume-code-banner";
 
 export default function ReviewPage({ params }: { params: Promise<{ sessionId: string }> }) {
   const { sessionId } = use(params);
@@ -55,6 +56,8 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
         <h1 className="text-2xl font-semibold tracking-tight">Here&apos;s what we&apos;ve learned about your business</h1>
         <p className="mt-2 text-muted-foreground">{REVIEW_INTRO_COPY}</p>
       </div>
+
+      {snapshot.resumeCode && <ResumeCodeBanner resumeCode={snapshot.resumeCode} />}
 
       <div className="flex gap-2">
         <Button variant="outline" size="sm" asChild>

@@ -5,6 +5,9 @@ import { Badge } from "@/components/ui/badge";
 
 export type ReviewSnapshot = {
   generatedAt: string;
+  resumeCode: string | null;
+  businessName: string | null;
+  contactEmail: string | null;
   phases: {
     phaseKey: string;
     phaseName: string;

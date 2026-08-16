@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import { sendResumeCodeEmail } from "@/lib/email/resend";
 import { syncClientToPlutio } from "@/lib/integrations/plutio";
-import { takePlaintextResumeCode } from "@/lib/session/resume-code-cache";
 
 const GENERAL_INFO_KEY_MAP: Record<string, string> = {
   general_full_name: "primaryContactName",
@@ -54,12 +53,11 @@ export async function syncGeneralInfoToClient(sessionId: string, answeredQuestio
   const nowHasEmail = updateData.primaryContactEmail ?? session.client.primaryContactEmail;
   if (!hadEmailBefore && nowHasEmail) {
     const client = await prisma.client.findUniqueOrThrow({ where: { id: session.clientId } });
-    const resumeCode = takePlaintextResumeCode(sessionId);
-    if (resumeCode && client.primaryContactEmail) {
+    if (session.resumeCodePlaintext && client.primaryContactEmail) {
       await sendResumeCodeEmail({
         to: client.primaryContactEmail,
         businessName: client.businessName ?? "your business",
-        resumeCode,
+        resumeCode: session.resumeCodePlaintext,
       });
     }
     if (client.businessName && client.primaryContactName && client.primaryContactEmail) {

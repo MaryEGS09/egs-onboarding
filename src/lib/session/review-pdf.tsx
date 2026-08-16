@@ -7,6 +7,10 @@ const styles = StyleSheet.create({
   title: { fontSize: 18, marginBottom: 4, color: "#1f5f3f" },
   subtitle: { fontSize: 10, color: "#666666", marginBottom: 16 },
   phaseTitle: { fontSize: 14, marginTop: 18, marginBottom: 8, color: "#1f5f3f", borderBottom: "1 solid #1f5f3f", paddingBottom: 4 },
+  resumeBox: { marginBottom: 16, padding: 10, backgroundColor: "#f4f6f4", borderRadius: 4 },
+  resumeLabel: { fontSize: 9, color: "#555555", marginBottom: 2 },
+  resumeCode: { fontSize: 13, fontWeight: 700, color: "#1b3219" },
+  resumeNote: { fontSize: 8, color: "#666666", marginTop: 4 },
   sectionTitle: { fontSize: 11, marginTop: 10, marginBottom: 4, fontWeight: 700 },
   questionBlock: { marginBottom: 8 },
   question: { fontWeight: 700, marginBottom: 2 },
@@ -21,6 +25,18 @@ function ReviewPdfDocument({ snapshot }: { snapshot: ReviewDocumentSnapshot }) {
       <Page size="A4" style={styles.page}>
         <Text style={styles.title}>EGS Marketing Solutions — Onboarding Review</Text>
         <Text style={styles.subtitle}>Generated {new Date(snapshot.generatedAt).toLocaleString()}</Text>
+
+        {snapshot.resumeCode && (
+          <View style={styles.resumeBox}>
+            <Text style={styles.resumeLabel}>Your resume code (use with your email and business name to resume or edit):</Text>
+            <Text style={styles.resumeCode}>{snapshot.resumeCode}</Text>
+            {(snapshot.businessName || snapshot.contactEmail) && (
+              <Text style={styles.resumeNote}>
+                {[snapshot.businessName, snapshot.contactEmail].filter(Boolean).join(" · ")}
+              </Text>
+            )}
+          </View>
+        )}
 
         {snapshot.phases.map((phase) => (
           <View key={phase.phaseKey} wrap>

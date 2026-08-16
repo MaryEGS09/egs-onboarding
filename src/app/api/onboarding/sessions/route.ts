@@ -3,7 +3,6 @@ import { z } from "zod";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db/prisma";
 import { generateResumeCode, hashResumeCode } from "@/lib/session/resume-code";
-import { stashPlaintextResumeCode } from "@/lib/session/resume-code-cache";
 import { createSessionCookieValue, CLIENT_SESSION_COOKIE_NAME, CLIENT_SESSION_COOKIE_MAX_AGE } from "@/lib/session/client-session-cookie";
 import { loadPhaseQuestions, loadAllPhasesOrdered } from "@/lib/ai/question-graph";
 
@@ -33,14 +32,13 @@ export async function POST(req: NextRequest) {
       clientId: client.id,
       mode: parsed.data.mode,
       resumeCodeHash,
+      resumeCodePlaintext: resumeCode,
       resumeCodeExpiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
       currentPhaseId: firstPhase.id,
       currentSectionId: firstQuestion?.sectionId,
       currentQuestionId: firstQuestion?.id,
     },
   });
-
-  stashPlaintextResumeCode(session.id, resumeCode);
 
   await prisma.auditLog.create({
     data: { sessionId: session.id, actorType: "CLIENT", action: "session_started", metadata: { mode: parsed.data.mode } },

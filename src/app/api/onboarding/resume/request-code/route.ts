@@ -33,7 +33,10 @@ export async function POST(req: NextRequest) {
   if (session) {
     const newCode = generateResumeCode();
     const newHash = await hashResumeCode(newCode);
-    await prisma.onboardingSession.update({ where: { id: session.id }, data: { resumeCodeHash: newHash } });
+    await prisma.onboardingSession.update({
+      where: { id: session.id },
+      data: { resumeCodeHash: newHash, resumeCodePlaintext: newCode },
+    });
     await sendResumeCodeEmail({ to: email, businessName, resumeCode: newCode });
     await prisma.auditLog.create({
       data: { sessionId: session.id, actorType: "CLIENT", action: "resume_code_requested" },

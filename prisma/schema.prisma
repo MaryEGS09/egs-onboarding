@@ -121,6 +121,11 @@ model OnboardingSession {
   mode                 SessionMode
   status               SessionStatus @default(IN_PROGRESS)
   resumeCodeHash       String        @unique
+  // Verification always goes through the hash above; this plaintext copy exists
+  // solely so the client can be shown their code again later (dashboard, review
+  // document, PDF) — an in-memory-only cache isn't reliable across serverless
+  // function invocations, which may run in different, short-lived instances.
+  resumeCodePlaintext  String?
   resumeCodeExpiresAt  DateTime?
   currentPhaseId       String?
   currentPhase         Phase?        @relation(fields: [currentPhaseId], references: [id])
