@@ -4,6 +4,7 @@ import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import {
   MODE_CONFIRMATION_COPY,
   AI_SPECIALIST_AVATAR,
@@ -15,6 +16,7 @@ import { startSession } from "@/lib/api/onboarding-client";
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import { EgsLogoHeader } from "@/components/onboarding/egs-logo-header";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 
 export default function ModeConfirmPage({ params }: { params: Promise<{ mode: string }> }) {
@@ -24,17 +26,32 @@ export default function ModeConfirmPage({ params }: { params: Promise<{ mode: st
   const router = useRouter();
   const setSession = useOnboardingStore((s) => s.setSession);
   const [loading, setLoading] = useState(false);
+  const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
+  const [resumeCode, setResumeCode] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   async function handleConfirm() {
     setLoading(true);
     try {
       const result = await startSession(mode === "interview" ? "INTERVIEW" : "CHAT");
       setSession(result.sessionId, result.mode as "CHAT" | "INTERVIEW");
-      router.push(`/onboarding/session/${result.sessionId}`);
+      setPendingSessionId(result.sessionId);
+      setResumeCode(result.resumeCode);
     } catch {
       toast.error("Something went wrong starting your session. Please try again.");
       setLoading(false);
     }
+  }
+
+  function handleContinueToSession() {
+    if (pendingSessionId) router.push(`/onboarding/session/${pendingSessionId}`);
+  }
+
+  async function handleCopyCode() {
+    if (!resumeCode) return;
+    await navigator.clipboard.writeText(resumeCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   return (
@@ -66,6 +83,30 @@ export default function ModeConfirmPage({ params }: { params: Promise<{ mode: st
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={Boolean(resumeCode)} onOpenChange={(open) => !open && handleContinueToSession()}>
+        <DialogContent onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>Save your resume code</DialogTitle>
+            <DialogDescription>
+              Write this down or copy it somewhere safe. You&apos;ll need it — along with your email and business
+              name — to pick up where you left off if you leave before finishing.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-between gap-3 rounded-lg border bg-secondary/50 p-4">
+            <span className="font-mono text-lg font-semibold tracking-wide">{resumeCode}</span>
+            <Button variant="outline" size="sm" onClick={handleCopyCode}>
+              {copied ? <Check className="mr-1 size-4" /> : <Copy className="mr-1 size-4" />}
+              {copied ? "Copied" : "Copy"}
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button className="w-full" onClick={handleContinueToSession}>
+              I&apos;ve saved it — let&apos;s begin
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }
