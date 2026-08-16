@@ -21,7 +21,13 @@ export async function getStorageAdapter(): Promise<StorageAdapter> {
     return cachedAdapter;
   }
 
+  if (provider === "vercel-blob") {
+    const { VercelBlobStorageAdapter } = await import("./vercel-blob");
+    cachedAdapter = new VercelBlobStorageAdapter();
+    return cachedAdapter;
+  }
+
   throw new Error(
-    `Unsupported STORAGE_PROVIDER "${provider}". Only "local" is implemented; add an S3-compatible adapter here when needed.`,
+    `Unsupported STORAGE_PROVIDER "${provider}". Supported: "local", "vercel-blob".`,
   );
 }

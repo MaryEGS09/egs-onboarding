@@ -28,10 +28,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const extension = file.name.includes(".") ? file.name.split(".").pop() : KIND_TO_EXTENSION[kind];
-  const key = `${sessionId}/${randomUUID()}.${extension}`;
+  const requestedKey = `${sessionId}/${randomUUID()}.${extension}`;
 
   const storage = await getStorageAdapter();
-  await storage.put(buffer, key, file.type);
+  // The adapter's return value is the authoritative storage key/path — for local
+  // disk it's the same string we passed in, but for e.g. Vercel Blob it's the
+  // actual public URL the file lives at, which is what we need to fetch it later.
+  const storedKey = await storage.put(buffer, requestedKey, file.type);
 
   const mediaUpload = await prisma.mediaUpload.create({
     data: {
@@ -39,7 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       questionId: question?.id,
       kind: kind as "AUDIO" | "VIDEO" | "FILE",
       storageProvider: process.env.STORAGE_PROVIDER ?? "local",
-      storagePath: key,
+      storagePath: storedKey,
       originalFilename: file.name,
       mimeType: file.type,
       sizeBytes: buffer.byteLength,
@@ -52,7 +55,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   return NextResponse.json({
     mediaUploadId: mediaUpload.id,
-    url: storage.urlFor(key),
+    url: storage.urlFor(storedKey),
     transcriptStatus: mediaUpload.transcriptStatus,
     transcriptText: mediaUpload.transcriptText,
   });
