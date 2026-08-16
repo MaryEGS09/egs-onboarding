@@ -1,0 +1,392 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────
+
+enum SessionMode {
+  CHAT
+  INTERVIEW
+}
+
+enum SessionStatus {
+  IN_PROGRESS
+  PAUSED
+  PENDING_REVIEW
+  COMPLETED
+  ABANDONED
+}
+
+enum ResponseType {
+  TEXT
+  LONG_TEXT
+  SINGLE_CHOICE
+  MULTI_CHOICE
+  URL
+  NUMBER
+  CURRENCY
+  VOICE
+  VIDEO
+  FILE_UPLOAD
+}
+
+enum AnswerSource {
+  TEXT_INPUT
+  VOICE_TRANSCRIPT
+  VIDEO_TRANSCRIPT
+  FILE_UPLOAD
+  AI_EXTRACTED
+}
+
+enum MediaKind {
+  AUDIO
+  VIDEO
+  FILE
+}
+
+enum TranscriptStatus {
+  NOT_APPLICABLE
+  COMPLETE
+  NOT_AVAILABLE
+}
+
+enum ReviewStatus {
+  NOT_REVIEWED
+  IN_REVIEW
+  APPROVED
+  NEEDS_CORRECTION
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ACCOUNT_MANAGER
+  VIEWER
+}
+
+enum ExportFormat {
+  PDF
+  HTML
+  JSON
+}
+
+enum ExportGeneratedBy {
+  SYSTEM_AUTO
+  ADMIN
+  CLIENT_FINAL
+}
+
+enum MessageRole {
+  CLIENT
+  ASSISTANT
+  SYSTEM
+}
+
+// ─────────────────────────────────────────────────────────────
+// Core models
+// ─────────────────────────────────────────────────────────────
+
+model Client {
+  id                  String             @id @default(cuid())
+  businessName        String?
+  primaryContactName  String?
+  primaryContactEmail String?
+  phone               String?
+  website             String?
+  streetAddress       String?
+  city                String?
+  state               String?
+  country             String?
+  postalCode          String?
+  primaryIndustry     String?
+  secondaryIndustry   String?
+  plutioPersonId      String?
+  plutioCompanyId     String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  sessions            OnboardingSession[]
+
+  @@index([primaryContactEmail, businessName])
+}
+
+model OnboardingSession {
+  id                   String        @id @default(cuid())
+  clientId             String
+  client               Client        @relation(fields: [clientId], references: [id])
+  mode                 SessionMode
+  status               SessionStatus @default(IN_PROGRESS)
+  resumeCodeHash       String        @unique
+  resumeCodeExpiresAt  DateTime?
+  currentPhaseId       String?
+  currentPhase         Phase?        @relation(fields: [currentPhaseId], references: [id])
+  currentSectionId     String?
+  currentSection       Section?      @relation(fields: [currentSectionId], references: [id])
+  currentQuestionId    String?
+  currentQuestion      Question?     @relation(fields: [currentQuestionId], references: [id])
+  reviewStatus         ReviewStatus  @default(NOT_REVIEWED)
+  plutioProjectId      String?
+  startedAt            DateTime      @default(now())
+  lastActivityAt       DateTime      @default(now())
+  completedAt          DateTime?
+
+  answers          Answer[]
+  mediaUploads     MediaUpload[]
+  phaseSummaries   PhaseSummary[]
+  messages         ConversationMessage[]
+  reviewDocuments  ReviewDocument[]
+  auditLogs        AuditLog[]
+  followUps        FollowUpExchange[]
+  versionHistory   AnswerVersionHistory[]
+
+  @@index([clientId])
+  @@index([status, lastActivityAt])
+}
+
+model Phase {
+  id          String    @id @default(cuid())
+  key         String    @unique
+  name        String
+  description String?
+  order       Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  sections            Section[]
+  sessionsCursor      OnboardingSession[]
+  phaseSummaries      PhaseSummary[]
+  conversationMessages ConversationMessage[]
+
+  @@index([order])
+}
+
+model Section {
+  id       String @id @default(cuid())
+  phaseId  String
+  phase    Phase  @relation(fields: [phaseId], references: [id])
+  key      String
+  name     String
+  order    Int
+
+  questions      Question[]
+  sessionsCursor OnboardingSession[]
+
+  @@unique([phaseId, order])
+  @@index([phaseId])
+}
+
+model Question {
+  id              String       @id @default(cuid())
+  sectionId       String
+  section         Section      @relation(fields: [sectionId], references: [id])
+  key             String       @unique
+  prompt          String
+  helpText        String?
+  responseType    ResponseType
+  required        Boolean      @default(true)
+  order           Int
+  aiInstructions  String
+  minConfidence   Float        @default(0.7)
+  voiceEnabled    Boolean      @default(true)
+  videoEnabled    Boolean      @default(true)
+  allowFileUpload Boolean      @default(false)
+  validationRules Json?
+  archived        Boolean      @default(false)
+  archivedAt      DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  options          QuestionOption[]
+  answers          Answer[]
+  sessionsCursor   OnboardingSession[]
+  followUps        FollowUpExchange[]
+  versionHistory   AnswerVersionHistory[]
+  conversationMsgs ConversationMessage[]
+  mediaUploads     MediaUpload[]
+
+  @@unique([sectionId, order])
+  @@index([archived])
+}
+
+model QuestionOption {
+  id            String  @id @default(cuid())
+  questionId    String
+  question      Question @relation(fields: [questionId], references: [id])
+  value         String
+  label         String
+  order         Int
+  allowFreeText Boolean @default(false)
+  archived      Boolean @default(false)
+
+  @@unique([questionId, value])
+}
+
+model Answer {
+  id                    String       @id @default(cuid())
+  sessionId             String
+  session               OnboardingSession @relation(fields: [sessionId], references: [id])
+  questionId            String
+  question              Question     @relation(fields: [questionId], references: [id])
+  textValue             String?
+  jsonValue             Json?
+  numberValue           Decimal?
+  currencyCode          String?
+  mediaUploadId         String?
+  mediaUpload           MediaUpload? @relation(fields: [mediaUploadId], references: [id])
+  source                AnswerSource
+  extractedFromAnswerId String?
+  extractedFromAnswer   Answer?      @relation("AnswerExtraction", fields: [extractedFromAnswerId], references: [id])
+  extractedAnswers      Answer[]     @relation("AnswerExtraction")
+  confidence            Float?
+  isComplete            Boolean      @default(false)
+  version               Int          @default(1)
+  answeredAt            DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  versionHistory AnswerVersionHistory[]
+  followUps      FollowUpExchange[]
+
+  @@unique([sessionId, questionId])
+  @@index([sessionId])
+  @@index([questionId])
+  @@index([mediaUploadId])
+}
+
+model AnswerVersionHistory {
+  id                    String   @id @default(cuid())
+  sessionId             String
+  session               OnboardingSession @relation(fields: [sessionId], references: [id])
+  questionId            String
+  question              Question @relation(fields: [questionId], references: [id])
+  answerId              String
+  answer                Answer   @relation(fields: [answerId], references: [id])
+  versionNumber         Int
+  textValue             String?
+  jsonValue             Json?
+  numberValue           Decimal?
+  currencyCode          String?
+  mediaUploadId         String?
+  source                AnswerSource
+  extractedFromAnswerId String?
+  supersededAt          DateTime @default(now())
+  supersededReason      String?
+
+  @@index([answerId])
+  @@index([sessionId, questionId])
+}
+
+model FollowUpExchange {
+  id                     String   @id @default(cuid())
+  answerId               String?
+  answer                 Answer?  @relation(fields: [answerId], references: [id], map: "FollowUpExchange_answer_fkey")
+  sessionId              String
+  session                OnboardingSession @relation(fields: [sessionId], references: [id])
+  questionId             String
+  question               Question @relation(fields: [questionId], references: [id])
+  order                  Int
+  aiQuestionText         String
+  clientResponseText     String?
+  mediaUploadId          String?
+  mediaUpload            MediaUpload? @relation(fields: [mediaUploadId], references: [id])
+  resultedInAnswerUpdate Boolean  @default(false)
+  createdAt              DateTime @default(now())
+
+  @@index([answerId])
+  @@index([sessionId])
+}
+
+model MediaUpload {
+  id                 String            @id @default(cuid())
+  sessionId          String
+  session            OnboardingSession @relation(fields: [sessionId], references: [id])
+  questionId         String?
+  question           Question?         @relation(fields: [questionId], references: [id])
+  kind               MediaKind
+  storageProvider    String
+  storagePath        String
+  originalFilename   String?
+  mimeType           String?
+  sizeBytes          Int?
+  durationSeconds    Int?
+  transcriptStatus   TranscriptStatus  @default(NOT_APPLICABLE)
+  transcriptText     String?
+  transcriptSource   String?
+  uploadedAt         DateTime          @default(now())
+  transcribedAt      DateTime?
+
+  answers   Answer[]
+  followUps FollowUpExchange[]
+
+  @@index([sessionId])
+  @@index([transcriptStatus])
+}
+
+model ConversationMessage {
+  id                 String      @id @default(cuid())
+  sessionId          String
+  session            OnboardingSession @relation(fields: [sessionId], references: [id])
+  phaseId            String?
+  phase              Phase?      @relation(fields: [phaseId], references: [id])
+  role               MessageRole
+  content            String
+  relatedQuestionId  String?
+  relatedQuestion    Question?   @relation(fields: [relatedQuestionId], references: [id])
+  archivedFromContext Boolean    @default(false)
+  createdAt          DateTime    @default(now())
+
+  @@index([sessionId, phaseId, createdAt])
+}
+
+model PhaseSummary {
+  id          String   @id @default(cuid())
+  sessionId   String
+  session     OnboardingSession @relation(fields: [sessionId], references: [id])
+  phaseId     String
+  phase       Phase    @relation(fields: [phaseId], references: [id])
+  summaryText String
+  createdAt   DateTime @default(now())
+
+  @@unique([sessionId, phaseId])
+}
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         AdminRole @default(ACCOUNT_MANAGER)
+  archived     Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  lastLoginAt  DateTime?
+}
+
+model ReviewDocument {
+  id           String            @id @default(cuid())
+  sessionId    String
+  session      OnboardingSession @relation(fields: [sessionId], references: [id])
+  version      Int
+  format       ExportFormat
+  storagePath  String?
+  snapshotJson Json
+  generatedAt  DateTime          @default(now())
+  generatedBy  ExportGeneratedBy
+
+  @@index([sessionId, version])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  sessionId  String?
+  session    OnboardingSession? @relation(fields: [sessionId], references: [id])
+  actorType  String
+  actorId    String?
+  action     String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([sessionId, createdAt])
+}
