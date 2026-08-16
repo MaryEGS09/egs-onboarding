@@ -1,10 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ReviewDocumentView, type ReviewSnapshot } from "@/components/review/review-document-view";
+import { Mail } from "lucide-react";
+import { toast } from "sonner";
 
 type ClientProfile = {
   client: { businessName: string | null; primaryContactName: string | null; primaryContactEmail: string | null };
@@ -23,6 +27,8 @@ type ClientProfile = {
 };
 
 export function AdminClientProfile({ sessionId }: { sessionId: string }) {
+  const [sending, setSending] = useState(false);
+
   const { data, isLoading } = useQuery({
     queryKey: ["admin-client", sessionId],
     queryFn: async () => {
@@ -31,6 +37,19 @@ export function AdminClientProfile({ sessionId }: { sessionId: string }) {
       return res.json() as Promise<ClientProfile>;
     },
   });
+
+  async function handleSendDocument() {
+    setSending(true);
+    try {
+      const res = await fetch(`/api/admin/clients/${sessionId}/send-document`, { method: "POST" });
+      if (!res.ok) throw new Error();
+      toast.success("Document emailed to the team inbox.");
+    } catch {
+      toast.error("Couldn't send the document. Check RESEND_API_KEY / EGS_TEAM_NOTIFICATION_EMAIL are configured.");
+    } finally {
+      setSending(false);
+    }
+  }
 
   if (isLoading || !data) return <Skeleton className="h-96 w-full" />;
 
@@ -45,9 +64,13 @@ export function AdminClientProfile({ sessionId }: { sessionId: string }) {
             {client.primaryContactName ?? "—"} · {client.primaryContactEmail ?? "—"}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <Badge variant="outline">{progress.status}</Badge>
           <Badge variant="outline">{progress.mode}</Badge>
+          <Button variant="outline" size="sm" onClick={handleSendDocument} disabled={sending}>
+            <Mail className="mr-1 size-4" />
+            {sending ? "Sending…" : "Email document to team"}
+          </Button>
         </div>
       </div>
 

@@ -35,3 +35,55 @@ You can use this code, along with your email and business name, to pick up where
 — EGS Marketing Solutions`,
   });
 }
+
+/**
+ * Sends the client's onboarding review document (PDF) to the internal EGS
+ * team inbox, so the team always has a copy regardless of whether the client
+ * ever downloads it themselves. Used both automatically on finalize and via
+ * an on-demand admin "resend" action.
+ */
+export async function sendReviewDocumentToTeam(params: {
+  businessName: string | null;
+  contactName: string | null;
+  contactEmail: string | null;
+  pdfBuffer: Buffer;
+  reason: "client_finalized" | "admin_requested";
+}): Promise<void> {
+  const client = getClient();
+  const from = process.env.RESEND_FROM_EMAIL ?? "onboarding@egs-solutions.com";
+  const teamEmail = process.env.EGS_TEAM_NOTIFICATION_EMAIL;
+  const label = params.businessName ?? params.contactName ?? "Unnamed client";
+
+  if (!client || !teamEmail) {
+    console.log(
+      `[resend:stub] Would email onboarding document for "${label}" to team inbox (reason: ${params.reason}).`,
+    );
+    return;
+  }
+
+  const reasonLine =
+    params.reason === "client_finalized"
+      ? "This client just finished and confirmed their onboarding questionnaire."
+      : "This copy was requested manually from the admin dashboard.";
+
+  await client.emails.send({
+    from,
+    to: teamEmail,
+    subject: `Onboarding document — ${label}`,
+    text: `${reasonLine}
+
+Business: ${params.businessName ?? "—"}
+Contact: ${params.contactName ?? "—"}
+Email: ${params.contactEmail ?? "—"}
+
+The completed onboarding document is attached.
+
+— EGS Onboarding Platform`,
+    attachments: [
+      {
+        filename: `egs-onboarding-${(params.businessName ?? "client").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.pdf`,
+        content: params.pdfBuffer,
+      },
+    ],
+  });
+}
