@@ -15,7 +15,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const snapshot = await buildReviewSnapshot(id);
   const pdfBuffer = await renderReviewPdf(snapshot);
 
-  await sendReviewDocumentToTeam({
+  const result = await sendReviewDocumentToTeam({
     businessName: snapshot.businessName,
     contactName: session.client.primaryContactName,
     contactEmail: snapshot.contactEmail,
@@ -23,9 +23,26 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     reason: "admin_requested",
   });
 
+  if (!result.sent) {
+    await prisma.auditLog.create({
+      data: {
+        sessionId: id,
+        actorType: "ADMIN",
+        action: "team_document_email_skipped_not_configured",
+        metadata: { reason: result.reason },
+      },
+    });
+    return NextResponse.json({ error: result.reason }, { status: 503 });
+  }
+
   await prisma.auditLog.create({
-    data: { sessionId: id, actorType: "ADMIN", action: "team_document_email_sent_manually" },
+    data: {
+      sessionId: id,
+      actorType: "ADMIN",
+      action: "team_document_email_sent_manually",
+      metadata: { to: result.to },
+    },
   });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, to: result.to });
 }

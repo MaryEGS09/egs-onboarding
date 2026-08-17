@@ -40,14 +40,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     data: { sessionId: id, actorType: "CLIENT", action: "client_confirmed_finalization" },
   });
 
+  // Never let email problems block the client from finalizing — record the
+  // outcome either way so the team can tell whether a copy actually went out.
   try {
     const pdfBuffer = await renderReviewPdf(snapshot);
-    await sendReviewDocumentToTeam({
+    const result = await sendReviewDocumentToTeam({
       businessName: snapshot.businessName,
       contactName: null,
       contactEmail: snapshot.contactEmail,
       pdfBuffer,
       reason: "client_finalized",
+    });
+    await prisma.auditLog.create({
+      data: {
+        sessionId: id,
+        actorType: "SYSTEM",
+        action: result.sent ? "team_document_email_sent" : "team_document_email_skipped_not_configured",
+        metadata: result.sent ? { to: result.to } : { reason: result.reason },
+      },
     });
   } catch (error) {
     await prisma.auditLog.create({

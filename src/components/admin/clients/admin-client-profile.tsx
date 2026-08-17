@@ -42,10 +42,14 @@ export function AdminClientProfile({ sessionId }: { sessionId: string }) {
     setSending(true);
     try {
       const res = await fetch(`/api/admin/clients/${sessionId}/send-document`, { method: "POST" });
-      if (!res.ok) throw new Error();
-      toast.success("Document emailed to the team inbox.");
+      const body = (await res.json()) as { ok?: boolean; to?: string; error?: string };
+      if (!res.ok) {
+        toast.error(body.error ?? "Couldn't send the document.");
+        return;
+      }
+      toast.success(`Document emailed to ${body.to ?? "the team inbox"}.`);
     } catch {
-      toast.error("Couldn't send the document. Check RESEND_API_KEY / EGS_TEAM_NOTIFICATION_EMAIL are configured.");
+      toast.error("Couldn't send the document. Please try again.");
     } finally {
       setSending(false);
     }

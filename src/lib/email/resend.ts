@@ -42,23 +42,30 @@ You can use this code, along with your email and business name, to pick up where
  * ever downloads it themselves. Used both automatically on finalize and via
  * an on-demand admin "resend" action.
  */
+export type SendResult = { sent: true; to: string } | { sent: false; reason: string };
+
 export async function sendReviewDocumentToTeam(params: {
   businessName: string | null;
   contactName: string | null;
   contactEmail: string | null;
   pdfBuffer: Buffer;
   reason: "client_finalized" | "admin_requested";
-}): Promise<void> {
+}): Promise<SendResult> {
   const client = getClient();
   const from = process.env.RESEND_FROM_EMAIL ?? "onboarding@egs-solutions.com";
   const teamEmail = process.env.EGS_TEAM_NOTIFICATION_EMAIL;
   const label = params.businessName ?? params.contactName ?? "Unnamed client";
 
+  // Report honestly rather than silently pretending to send — a missing key or
+  // recipient is a config problem the admin needs told about, not hidden.
   if (!client || !teamEmail) {
+    const missing = [!client ? "RESEND_API_KEY" : null, !teamEmail ? "EGS_TEAM_NOTIFICATION_EMAIL" : null]
+      .filter((v): v is string => v !== null)
+      .join(", ");
     console.log(
-      `[resend:stub] Would email onboarding document for "${label}" to team inbox (reason: ${params.reason}).`,
+      `[resend:stub] Would email onboarding document for "${label}" (reason: ${params.reason}). Not configured: ${missing}.`,
     );
-    return;
+    return { sent: false, reason: `Email is not configured on this environment (missing ${missing}).` };
   }
 
   const reasonLine =
@@ -86,4 +93,6 @@ The completed onboarding document is attached.
       },
     ],
   });
+
+  return { sent: true, to: teamEmail };
 }
