@@ -73,6 +73,10 @@ export function useOnboardingConversation(sessionId: string) {
         store.addMessage({ role: "assistant", content: result.assistantMessage });
       }
 
+      if (result.progressNudge) {
+        store.addMessage({ role: "system", content: result.progressNudge });
+      }
+
       if (result.followUp) {
         store.addMessage({ role: "assistant", content: result.followUp.text, variant: "followup" });
       } else if (result.phaseComplete && !result.sessionComplete) {

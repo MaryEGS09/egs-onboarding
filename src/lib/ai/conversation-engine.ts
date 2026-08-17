@@ -21,6 +21,7 @@ export type NextStepDescriptor = {
   nextQuestion: SerializedQuestion | null;
   phaseComplete: boolean;
   sessionComplete: boolean;
+  progressNudge?: string;
 };
 
 type SerializedQuestion = {
@@ -81,7 +82,7 @@ Rules:
 3. If the client's response also answers other not-yet-asked questions in this phase, include them as secondary_answers on the same record_answer call rather than asking about them again later.
 4. If an answer is too vague or generic per that question's ai_instructions, call ask_followup instead of record_answer — write the follow-up question itself in the ask_followup tool call's followup_text field, short and specific.
 5. Only call revise_answer when the client is explicitly correcting a previously-given answer (e.g. "actually, my budget is..."). Do not use it just because the current answer doesn't fit the CURRENT question's expected format — if it looks malformed (e.g. not a valid email), treat it as an incomplete/invalid answer to the CURRENT question (ask_followup) rather than rerouting it elsewhere.
-6. Your visible text reply is ONLY a brief warm acknowledgment of what the client just said (1 sentence, e.g. "Thanks, Mark!" or "Got it, that's helpful context."). Do NOT restate, rephrase, or ask the next question yourself in your text reply — the interface displays the next question separately. Do NOT leave the text reply empty; always include at least a short acknowledgment.
+6. Your visible text reply is 1 short sentence that reacts to what they ACTUALLY said, not a generic filler. For substantive answers about their business (mission, differentiation, values, goals, target customers, etc.), be genuinely warm and specific — reference the actual content back to them so they feel heard, e.g. if they describe a mission around helping families feel confident, say something like "That's a wonderful mission — helping families feel more confident is such a strong purpose." For simple factual answers (name, email, phone, address, a single number), a brief plain acknowledgment is enough ("Thanks, Mark!") — don't force enthusiasm onto trivial data. Do NOT restate, rephrase, or ask the next question yourself in your text reply — the interface displays the next question separately. Do NOT leave the text reply empty; always include at least a short acknowledgment.
 7. Do not repeat information the client already gave you.
 
 Questions in this phase:
@@ -207,6 +208,13 @@ export async function processTurn(input: ProcessTurnInput): Promise<NextStepDesc
     data: { sessionId: session.id, phaseId: phase.id, role: "ASSISTANT", content: assistantMessage },
   });
 
+  const progressNudge = await maybeBuildProgressNudge(session.id, phase.id, phase.name, questions, existingAnswers.length);
+  if (progressNudge) {
+    await prisma.conversationMessage.create({
+      data: { sessionId: session.id, phaseId: phase.id, role: "SYSTEM", content: progressNudge },
+    });
+  }
+
   const stayOnCurrentQuestion = Boolean(followUp) && explicitNextKey === undefined;
 
   let nextQuestionRow = stayOnCurrentQuestion
@@ -283,7 +291,35 @@ export async function processTurn(input: ProcessTurnInput): Promise<NextStepDesc
     nextQuestion: nextQuestionSerialized,
     phaseComplete,
     sessionComplete,
+    progressNudge,
   };
+}
+
+/**
+ * Fires once per phase, right as the client crosses the halfway point, to
+ * keep them motivated through longer sections. Skipped for short phases and
+ * for the turn that completes the phase entirely (that gets its own
+ * "moving to the next section" message instead).
+ */
+async function maybeBuildProgressNudge(
+  sessionId: string,
+  phaseId: string,
+  phaseName: string,
+  questions: Awaited<ReturnType<typeof loadPhaseQuestions>>,
+  completedBefore: number,
+): Promise<string | undefined> {
+  const total = questions.length;
+  if (total < 4) return undefined;
+
+  const completedAfter = await prisma.answer.count({
+    where: { sessionId, questionId: { in: questions.map((q) => q.id) }, isComplete: true },
+  });
+
+  const halfway = Math.ceil(total / 2);
+  if (completedBefore >= halfway || completedAfter < halfway || completedAfter >= total) return undefined;
+
+  const remaining = total - completedAfter;
+  return `You're doing great! Just ${remaining} more question${remaining === 1 ? "" : "s"} to go to complete the ${phaseName} section.`;
 }
 
 async function handleRecordAnswer(

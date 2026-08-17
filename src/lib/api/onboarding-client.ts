@@ -17,6 +17,7 @@ export type NextStepDescriptor = {
   nextQuestion: QuestionDescriptor | null;
   phaseComplete: boolean;
   sessionComplete: boolean;
+  progressNudge?: string;
 };
 
 async function jsonFetch<T>(url: string, init?: RequestInit): Promise<T> {
