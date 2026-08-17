@@ -54,11 +54,25 @@ export async function syncGeneralInfoToClient(sessionId: string, answeredQuestio
   if (!hadEmailBefore && nowHasEmail) {
     const client = await prisma.client.findUniqueOrThrow({ where: { id: session.clientId } });
     if (session.resumeCodePlaintext && client.primaryContactEmail) {
-      await sendResumeCodeEmail({
-        to: client.primaryContactEmail,
-        businessName: client.businessName ?? "your business",
-        resumeCode: session.resumeCodePlaintext,
-      });
+      // Never let an email failure break the client's onboarding — the code is
+      // already shown on-screen at session start and in the review document, so
+      // email is a convenience, not the only delivery path.
+      try {
+        await sendResumeCodeEmail({
+          to: client.primaryContactEmail,
+          businessName: client.businessName ?? "your business",
+          resumeCode: session.resumeCodePlaintext,
+        });
+      } catch (error) {
+        await prisma.auditLog.create({
+          data: {
+            sessionId,
+            actorType: "SYSTEM",
+            action: "resume_code_email_failed",
+            metadata: { error: error instanceof Error ? error.message : String(error) },
+          },
+        });
+      }
     }
     if (client.businessName && client.primaryContactName && client.primaryContactEmail) {
       await syncClientToPlutio({
