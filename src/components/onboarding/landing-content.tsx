@@ -13,6 +13,19 @@ export function LandingContent() {
         A guided, AI-assisted onboarding experience so our team can build marketing, SEO, content, and branding
         strategies that are genuinely tailored to your business.
       </p>
+
+      {/* Welcome video — 16:9 source (1280x720). preload="metadata" keeps the
+          initial page load light while still showing a first frame. */}
+      <video
+        className="mt-8 aspect-video w-full max-w-2xl rounded-xl border bg-muted shadow-sm"
+        controls
+        playsInline
+        preload="metadata"
+      >
+        <source src="/brand/egs-welcome-video.mp4" type="video/mp4" />
+        Your browser doesn&apos;t support embedded video. You can continue with the onboarding below.
+      </video>
+
       <div className="mt-10 flex flex-col gap-3 sm:flex-row">
         <Button asChild size="lg">
           <Link href="/onboarding/start">Start Onboarding</Link>
